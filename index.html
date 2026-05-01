@@ -707,17 +707,177 @@ function clearForm() {
   document.getElementById('sp-tog-yes').className = 'sp-tog-btn';
   document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
 }
+// ===== ใส่ URL ของ Google Apps Script ที่นี่ =====
+var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwI-HmmAiBtgNlxbY2nKpuvk_TroOSI-Vq3fVK_5WtfKCtHdFGyAoJZ_uqxX13CXyTr4Q/exec";
+// ===================================================
+
+function collectFormData() {
+  // ตรวจเช็คระบบ
+  var checkPanels = document.getElementById('panel-check');
+  var checkOpen = document.getElementById('job-check').classList.contains('open');
+  var checkTAs = checkOpen ? checkPanels.querySelectorAll('textarea') : [];
+  
+  // เก็บตัวอย่างน้ำ
+  var sampleOpen = document.getElementById('job-sample').classList.contains('open');
+  var sampleOk = document.querySelector('#panel-sample .sb-btn.a-ok');
+  var sampleNok = document.querySelector('#panel-sample .sb-btn.a-nok');
+  var sampleResult = sampleOk ? 'เรียบร้อย' : (sampleNok ? 'ไม่เรียบร้อย' : '');
+  var sampleNokTxt = document.querySelector('#sample-nok textarea');
+  
+  // สอบเทียบ — เก็บแถวตาราง
+  var calibOpen = document.getElementById('job-calib').classList.contains('open');
+  var calibRows = [];
+  if (calibOpen) {
+    document.querySelectorAll('#calib-list tr').forEach(function(tr, i) {
+      var cells = tr.querySelectorAll('td');
+      if (cells.length >= 4) {
+        var sensor = cells[0].querySelector('select') ? cells[0].querySelector('select').value : '';
+        var otherInp = cells[0].querySelector('.sensor-other-inp');
+        if (otherInp && otherInp.style.display !== 'none') sensor = otherInp.value;
+        var tag = cells[1].querySelector('input') ? cells[1].querySelector('input').value : '';
+        var loc = cells[2].querySelector('input') ? cells[2].querySelector('input').value : '';
+        var result = cells[3].querySelector('select') ? cells[3].querySelector('select').value : '';
+        if (sensor || tag) calibRows.push((i+1) + '. ' + sensor + ' ' + tag + ' ' + loc + ' ' + result);
+      }
+    });
+  }
+  
+  // Spare Parts ของ Calibration
+  var spCalibRows = [];
+  if (calibOpen && document.getElementById('sp-calib-box').classList.contains('open')) {
+    document.querySelectorAll('#sp-calib-list tr').forEach(function(tr, i) {
+      var cells = tr.querySelectorAll('td');
+      if (cells.length >= 4) {
+        var sensor = cells[0].querySelector('select') ? cells[0].querySelector('select').value : '';
+        var tag = cells[1].querySelector('input') ? cells[1].querySelector('input').value : '';
+        var loc = cells[2].querySelector('input') ? cells[2].querySelector('input').value : '';
+        var detail = cells[3].querySelector('textarea') ? cells[3].querySelector('textarea').value : '';
+        if (sensor || detail) spCalibRows.push((i+1) + '. ' + sensor + ' ' + tag + ' ' + loc + ' — ' + detail);
+      }
+    });
+  }
+  
+  // เปลี่ยน Spare Parts
+  var spareOpen = document.getElementById('job-spare').classList.contains('open');
+  var spareRows = [];
+  if (spareOpen) {
+    document.querySelectorAll('#sp-main-list tr').forEach(function(tr, i) {
+      var inputs = tr.querySelectorAll('input');
+      if (inputs.length >= 3 && inputs[0].value) {
+        spareRows.push((i+1) + '. ' + inputs[0].value + ' ' + inputs[1].value + ' ' + inputs[2].value);
+      }
+    });
+  }
+  
+  // ส่งสินค้า
+  var delivOpen = document.getElementById('job-delivery').classList.contains('open');
+  var delivRows = [];
+  if (delivOpen) {
+    document.querySelectorAll('#delivery-list tr').forEach(function(tr, i) {
+      var inputs = tr.querySelectorAll('input');
+      if (inputs.length >= 3 && inputs[0].value) {
+        delivRows.push((i+1) + '. ' + inputs[0].value + ' ' + inputs[1].value + ' ' + inputs[2].value);
+      }
+    });
+  }
+  
+  // แจ้งซ่อม
+  var repairOpen = document.getElementById('job-repair').classList.contains('open');
+  var repairRows = [];
+  if (repairOpen) {
+    document.querySelectorAll('#repair-list tr').forEach(function(tr, i) {
+      var tas = tr.querySelectorAll('textarea');
+      if (tas.length >= 3 && (tas[0].value || tas[2].value)) {
+        repairRows.push((i+1) + '. [' + tas[0].value + '] Tag:' + tas[1].value + ' — ' + tas[2].value);
+      }
+    });
+  }
+
+  // Client value (handle other)
+  var clientSel = document.getElementById('f-client');
+  var clientVal = clientSel.value === '__other__' 
+    ? document.getElementById('client-other-inp').value 
+    : clientSel.value;
+  
+  var plantSel = document.getElementById('f-plant');
+  var plantVal = plantSel.value === '__other__' 
+    ? document.getElementById('plant-other-inp').value 
+    : plantSel.value;
+
+  return {
+    date:        document.getElementById('f-date').value,
+    technician:  document.getElementById('f-tech').value.trim(),
+    client:      clientVal,
+    plant:       plantVal,
+    // ตรวจเช็คระบบ
+    checkDetail:  (checkOpen && checkTAs[0]) ? checkTAs[0].value : '',
+    checkProblem: (checkOpen && checkTAs[1]) ? checkTAs[1].value : '',
+    // เก็บตัวอย่างน้ำ
+    sampleResult: sampleOpen ? sampleResult : '',
+    sampleNote:   sampleOpen && sampleNokTxt ? sampleNokTxt.value : '',
+    // สอบเทียบ
+    calibList:  calibRows.join('\n'),
+    calibSpare: spCalibRows.join('\n'),
+    calibNote:  calibOpen ? (document.querySelector('#panel-calib .pf:last-of-type textarea') || {value:''}).value : '',
+    // Spare Parts
+    spareList:   spareRows.join('\n'),
+    spareDetail: spareOpen ? (document.querySelectorAll('#panel-spare textarea')[1] || {value:''}).value : '',
+    // ส่งสินค้า
+    deliveryList: delivRows.join('\n'),
+    deliveryNote: delivOpen ? (document.querySelectorAll('#panel-delivery textarea')[0] || {value:''}).value : '',
+    // แจ้งซ่อม
+    repairList:   repairRows.join('\n'),
+    repairDetail: repairOpen ? (document.querySelectorAll('#panel-repair textarea')[1] || {value:''}).value : '',
+    // อื่นๆ
+    other: document.getElementById('job-other').classList.contains('open')
+           ? (document.querySelector('#panel-other textarea') || {value:''}).value : '',
+    // Email
+    emailTo:   document.getElementById('email-tags').innerText.replace(/×/g,'').trim(),
+    emailNote: document.querySelector('.email-wrap ~ .field textarea') 
+               ? document.querySelector('.email-wrap ~ .field textarea').value : ''
+  };
+}
+
 function submitForm() {
   var client = document.getElementById('f-client').value;
   var tech = document.getElementById('f-tech').value.trim();
   var hasJob = document.querySelector('.job-item.open');
-  if (!client) { alert('กรุณาเลือกชื่อลูกค้า'); return; }
+  if (!client || client === '') { alert('กรุณาเลือกชื่อลูกค้า'); return; }
   if (!tech) { alert('กรุณากรอกชื่อผู้ปฏิบัติงาน'); return; }
   if (!hasJob) { alert('กรุณาเลือกประเภทงานอย่างน้อย 1 รายการ'); return; }
+
   var btn = document.getElementById('btn-sub');
   btn.disabled = true;
   btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="animation:spin .8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="white" stroke-width="2" stroke-linecap="round"/></svg> กำลังส่ง...';
-  setTimeout(function() {
+
+  var formData = collectFormData();
+
+  // ตรวจว่าใส่ URL แล้วหรือยัง
+  if (SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+    // โหมดทดสอบ — แสดง data ที่จะส่ง
+    console.log("Form Data:", JSON.stringify(formData, null, 2));
+    setTimeout(function() {
+      btn.classList.add('success');
+      btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> ทดสอบ OK (ยังไม่ได้ใส่ Script URL)';
+      document.getElementById('toast').classList.add('show');
+      document.getElementById('toast').querySelector('svg').nextSibling.textContent = ' ดู Console (F12) เพื่อตรวจข้อมูล';
+      setTimeout(function() { document.getElementById('toast').classList.remove('show'); }, 4000);
+      setTimeout(function() {
+        btn.disabled = false; btn.classList.remove('success');
+        btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งรายงาน';
+      }, 4000);
+    }, 800);
+    return;
+  }
+
+  // ส่งจริงไปยัง Google Apps Script
+  fetch(SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(formData)
+  })
+  .then(function() {
     btn.classList.add('success');
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งแล้ว';
     document.getElementById('toast').classList.add('show');
@@ -726,7 +886,12 @@ function submitForm() {
       btn.disabled = false; btn.classList.remove('success');
       btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งรายงาน';
     }, 4000);
-  }, 1400);
+  })
+  .catch(function(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งรายงาน';
+    alert('เกิดข้อผิดพลาด: ' + err.message);
+  });
 }
 
 </script>
